@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: hub_user
+      POSTGRES_PASSWORD: hub_pass
+      POSTGRES_DB: content_hub
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hub_user -d content_hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+
+  parser:
+    build: .
+    restart: always
+    command: python services/parser.py
+    env_file: .env
+    volumes:
+      - ./media_storage:/app/media_storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  processor:
+    build: .
+    restart: always
+    command: python services/processor.py
+    env_file: .env
+    volumes:
+      - ./media_storage:/app/media_storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  admin_bot:
+    build: .
+    restart: always
+    command: python services/admin_bot.py
+    env_file: .env
+    volumes:
+      - ./media_storage:/app/media_storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  pub_tg:
+    build: .
+    restart: always
+    command: python services/pub_tg.py
+    env_file: .env
+    volumes:
+      - ./media_storage:/app/media_storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  pub_vk:
+    build: .
+    restart: always
+    command: python services/pub_vk.py
+    env_file: .env
+    volumes:
+      - ./media_storage:/app/media_storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  pg_data:
+  redis_data:
